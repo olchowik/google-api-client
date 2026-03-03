@@ -1,0 +1,6 @@
+credentials/credentials.json
+credentials/token.json
+downloads/
+__pycache__/
+*.pyc
+.env
