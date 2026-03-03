@@ -1,41 +1,32 @@
-"""Gmail API usage examples."""
+"""Gmail API usage examples using direct service calls."""
 
 import sys
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.gmail_client import GmailClient
+from src.auth import connect
 
+gmail, drive = connect()
 
-def main():
-    client = GmailClient()
+# List labels
+print("=== Labels ===")
+results = gmail.users().labels().list(userId="me").execute()
+for label in results.get("labels", []):
+    print(f"  {label['name']}")
 
-    # List labels
-    print("=== Labels ===")
-    for label in client.list_labels():
-        print(f"  {label['name']} ({label['id']})")
+# Search recent messages
+print("\n=== Recent messages ===")
+results = gmail.users().messages().list(userId="me", q="newer_than:3d", maxResults=5).execute()
+for msg_stub in results.get("messages", []):
+    msg = gmail.users().messages().get(userId="me", id=msg_stub["id"], format="metadata").execute()
+    headers = {h["name"]: h["value"] for h in msg["payload"]["headers"]}
+    print(f"  From: {headers.get('From', '')}")
+    print(f"  Subject: {headers.get('Subject', '')}")
+    print()
 
-    # Search recent messages
-    print("\n=== Recent messages ===")
-    messages = client.search_messages("newer_than:7d", max_results=5)
-    for msg_stub in messages:
-        msg = client.get_message(msg_stub["id"])
-        print(f"  From: {msg['from']}")
-        print(f"  Subject: {msg['subject']}")
-        print(f"  Date: {msg['date']}")
-        print()
+# Create a label
+# gmail.users().labels().create(userId="me", body={"name": "MyNewLabel"}).execute()
 
-    # Download attachments from first message that has them
-    print("=== Searching for messages with attachments ===")
-    with_att = client.search_messages("has:attachment newer_than:30d", max_results=1)
-    if with_att:
-        msg_id = with_att[0]["id"]
-        saved = client.download_attachments(msg_id, save_dir="./downloads")
-        print(f"  Saved {len(saved)} attachment(s): {saved}")
-    else:
-        print("  No messages with attachments found in the last 30 days.")
-
-
-if __name__ == "__main__":
-    main()
+# Trash a message
+# gmail.users().messages().trash(userId="me", id="<message_id>").execute()

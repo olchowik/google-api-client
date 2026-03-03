@@ -1,6 +1,6 @@
 # Google API Client
 
-Python client for Gmail and Google Drive APIs. Search and read emails, send messages with attachments, download email attachments, and manage files on Google Drive.
+Lightweight Python authentication for Gmail and Google Drive APIs. Handles OAuth2 flow and token caching — then gives you direct access to the full API.
 
 ## Setup
 
@@ -14,134 +14,92 @@ pip install -r requirements.txt
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com)
 2. Create a new project (or select an existing one)
-3. Navigate to **APIs & Services > Library** and enable:
-   - **Gmail API**
-   - **Google Drive API**
-4. Go to **APIs & Services > Credentials**
-5. Click **Create Credentials > OAuth 2.0 Client ID**
-6. Select **Desktop app** as the application type
-7. Download the JSON file and save it as `credentials/credentials.json`
+3. Enable **Gmail API** and **Google Drive API**
+4. Go to **Credentials > Create Credentials > OAuth 2.0 Client ID**
+5. Select **Desktop app**, create, and download the JSON
+6. Save it as `credentials/credentials.json`
 
-### 3. Authenticate
+### 3. First run
 
-On the first run, a browser window will open for OAuth consent. After granting access, a token is cached in `credentials/token.json` and reused automatically.
+On the first run, a browser window opens for OAuth consent. After that, the token is cached automatically.
 
 ## Usage
 
-### Gmail
+```python
+from src.auth import connect
+
+gmail, drive = connect()
+```
+
+That's it. `gmail` and `drive` are standard Google API service objects with access to every method.
+
+### Gmail examples
 
 ```python
-from src.gmail_client import GmailClient
-
-gmail = GmailClient()
+# List labels
+gmail.users().labels().list(userId="me").execute()
 
 # Search messages
-messages = gmail.search_messages("from:user@example.com newer_than:7d")
+gmail.users().messages().list(userId="me", q="has:attachment newer_than:7d").execute()
 
-# Read a message
-msg = gmail.get_message(messages[0]["id"])
-print(msg["subject"], msg["from"], msg["body"])
+# Get a message
+gmail.users().messages().get(userId="me", id="<msg_id>", format="full").execute()
 
-# Download attachments
-gmail.download_attachments(messages[0]["id"], save_dir="./downloads")
+# Create a label (folder)
+gmail.users().labels().create(userId="me", body={"name": "My Label"}).execute()
 
-# Send an email
-gmail.send_message(
-    to="recipient@example.com",
-    subject="Hello",
-    body="Message body here",
-)
+# Trash a message
+gmail.users().messages().trash(userId="me", id="<msg_id>").execute()
 
-# Send with attachments
-gmail.send_message(
-    to="recipient@example.com",
-    subject="Report",
-    body="See attached.",
-    attachments=["./report.pdf", "./data.csv"],
-)
-
-# List labels
-labels = gmail.list_labels()
+# Download attachment
+att = gmail.users().messages().attachments().get(
+    userId="me", messageId="<msg_id>", id="<attachment_id>"
+).execute()
 ```
 
-#### Gmail search query examples
+Full reference: https://developers.google.com/gmail/api/reference/rest
 
-| Query | Description |
-|-------|-------------|
-| `from:user@example.com` | Messages from a specific sender |
-| `has:attachment` | Messages with attachments |
-| `newer_than:7d` | Messages from the last 7 days |
-| `subject:invoice` | Messages with "invoice" in the subject |
-| `is:unread` | Unread messages |
-| `label:INBOX` | Messages in inbox |
-
-Full query syntax: [Gmail search operators](https://support.google.com/mail/answer/7190)
-
-### Google Drive
+### Drive examples
 
 ```python
-from src.drive_client import DriveClient
-
-drive = DriveClient()
-
 # List files
-files = drive.list_files(page_size=10)
-for f in files:
-    print(f["name"], f["mimeType"], f["id"])
+drive.files().list(pageSize=10, fields="files(id, name, mimeType)").execute()
 
 # Search files
-pdfs = drive.list_files(query="mimeType='application/pdf'")
-by_name = drive.list_files(query="name contains 'report'")
-
-# Download a file
-drive.download_file(file_id="<file_id>", save_path="./downloads/file.pdf")
-
-# Upload a file
-result = drive.upload_file("./report.pdf")
-print(result["id"], result["name"])
-
-# Upload to a specific folder
-drive.upload_file("./report.pdf", folder_id="<folder_id>")
+drive.files().list(q="mimeType='application/pdf'", fields="files(id, name)").execute()
 
 # Create a folder
-folder = drive.create_folder("My Folder")
-print(folder["id"])
+drive.files().create(
+    body={"name": "My Folder", "mimeType": "application/vnd.google-apps.folder"}
+).execute()
 
-# Export a Google Doc as PDF
-drive.export_google_doc(
-    file_id="<doc_id>",
-    mime_type="application/pdf",
-    save_path="./exports/document.pdf",
-)
+# Upload a file
+from googleapiclient.http import MediaFileUpload
+media = MediaFileUpload("./report.pdf", resumable=True)
+drive.files().create(body={"name": "report.pdf"}, media_body=media).execute()
+
+# Download a file
+from googleapiclient.http import MediaIoBaseDownload
+request = drive.files().get_media(fileId="<file_id>")
+with open("./file.pdf", "wb") as f:
+    downloader = MediaIoBaseDownload(f, request)
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+
+# Export Google Doc as PDF
+request = drive.files().export_media(fileId="<doc_id>", mimeType="application/pdf")
 ```
 
-#### Export formats for Google Workspace files
-
-| File type | mime_type |
-|-----------|-----------|
-| Google Docs → PDF | `application/pdf` |
-| Google Docs → DOCX | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` |
-| Google Sheets → CSV | `text/csv` |
-| Google Sheets → XLSX | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` |
-| Google Slides → PDF | `application/pdf` |
-| Google Slides → PPTX | `application/vnd.openxmlformats-officedocument.presentationml.presentation` |
-
-## Running examples
-
-```bash
-python examples/gmail_example.py
-python examples/drive_example.py
-```
+Full reference: https://developers.google.com/drive/api/reference/rest/v3
 
 ## Project structure
 
 ```
 google-api-client/
-├── credentials/          # OAuth credentials (gitignored)
+├── credentials/      # OAuth credentials (gitignored)
 ├── src/
-│   ├── auth.py           # Shared OAuth2 authentication
-│   ├── gmail_client.py   # GmailClient class
-│   └── drive_client.py   # DriveClient class
+│   └── auth.py       # OAuth2 auth + connect()
 ├── examples/
 │   ├── gmail_example.py
 │   └── drive_example.py

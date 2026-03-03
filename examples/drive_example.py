@@ -1,40 +1,33 @@
-"""Google Drive API usage examples."""
+"""Google Drive API usage examples using direct service calls."""
 
 import sys
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.drive_client import DriveClient
+from src.auth import connect
 
+gmail, drive = connect()
 
-def main():
-    client = DriveClient()
+# List files
+print("=== Recent Drive files ===")
+results = drive.files().list(pageSize=10, fields="files(id, name, mimeType, size)").execute()
+for f in results.get("files", []):
+    print(f"  {f['name']}  (type: {f['mimeType']}, size: {f.get('size', 'N/A')})")
 
-    # List files
-    print("=== Recent Drive files ===")
-    files = client.list_files(page_size=10)
-    for f in files:
-        size = f.get("size", "N/A")
-        print(f"  {f['name']}  (type: {f['mimeType']}, size: {size}, id: {f['id']})")
+# Create a folder
+# drive.files().create(body={"name": "MyFolder", "mimeType": "application/vnd.google-apps.folder"}).execute()
 
-    # Create a folder
-    print("\n=== Creating a test folder ===")
-    folder = client.create_folder("test-api-folder")
-    print(f"  Created folder: {folder['name']} (id: {folder['id']})")
+# Upload a file
+# from googleapiclient.http import MediaFileUpload
+# media = MediaFileUpload("./myfile.pdf", resumable=True)
+# drive.files().create(body={"name": "myfile.pdf"}, media_body=media).execute()
 
-    # Upload a file to that folder
-    # Uncomment to test:
-    # print("\n=== Uploading a file ===")
-    # result = client.upload_file("./some-file.txt", folder_id=folder["id"])
-    # print(f"  Uploaded: {result['name']} (id: {result['id']})")
-
-    # Download a file
-    # Uncomment and set a file_id to test:
-    # print("\n=== Downloading a file ===")
-    # path = client.download_file("<file_id>", "./downloads/myfile.pdf")
-    # print(f"  Downloaded to: {path}")
-
-
-if __name__ == "__main__":
-    main()
+# Download a file
+# from googleapiclient.http import MediaIoBaseDownload
+# request = drive.files().get_media(fileId="<file_id>")
+# with open("./downloaded.pdf", "wb") as f:
+#     downloader = MediaIoBaseDownload(f, request)
+#     done = False
+#     while not done:
+#         _, done = downloader.next_chunk()

@@ -1,7 +1,9 @@
 import os
+
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
 
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify",
@@ -42,3 +44,27 @@ def get_credentials() -> Credentials:
             token.write(creds.to_json())
 
     return creds
+
+
+def connect():
+    """Authenticate and return Gmail and Drive service objects.
+
+    Returns:
+        (gmail, drive) tuple of authenticated API service objects.
+
+    Usage:
+        gmail, drive = connect()
+
+        # Gmail - full API: https://developers.google.com/gmail/api/reference/rest
+        gmail.users().labels().list(userId="me").execute()
+        gmail.users().messages().list(userId="me", q="has:attachment").execute()
+        gmail.users().labels().create(userId="me", body={"name": "My Label"}).execute()
+
+        # Drive - full API: https://developers.google.com/drive/api/reference/rest/v3
+        drive.files().list(pageSize=10).execute()
+        drive.files().create(body={"name": "folder", "mimeType": "application/vnd.google-apps.folder"}).execute()
+    """
+    creds = get_credentials()
+    gmail = build("gmail", "v1", credentials=creds)
+    drive = build("drive", "v3", credentials=creds)
+    return gmail, drive
